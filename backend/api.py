@@ -6,7 +6,26 @@ import pickle
 from tensorflow.keras.models import load_model
 from music21 import stream, note, chord, instrument
 import os
+import gdown
 
+# 1. นำ File ID ที่ได้จากขั้นตอนแรกมาใส่ตรงนี้
+MODEL_FILE_ID = 'https://drive.google.com/file/d/1DfgicvajU1mSKldFkYcdmG2FhHrt06eA/view?usp=drive_link'
+NOTE_MAPPING_ID = 'https://drive.google.com/file/d/1ja5p7R6L088fuomIlMu8EbDHcwscFRPZ/view?usp=sharing'
+DATA_NOTES_ID = 'https://drive.google.com/file/d/1RL2vx32zVRAo0ZuX4ggrFiDpgFusmkOX/view?usp=sharing'
+
+# 2. ฟังก์ชันตรวจสอบและดาวน์โหลดไฟล์
+def download_model_from_drive(file_id, output_filename):
+    # ถ้ายังไม่มีไฟล์นี้ในเครื่องเซิร์ฟเวอร์ ให้ดาวน์โหลด
+    if not os.path.exists(output_filename):
+        print(f"กำลังดาวน์โหลด {output_filename} จาก Google Drive...")
+        url = f'https://drive.google.com/uc?id={file_id}'
+        gdown.download(url, output_filename, quiet=False)
+        print(f"ดาวน์โหลด {output_filename} สำเร็จ!")
+
+# 3. สั่งรันฟังก์ชันดาวน์โหลดก่อนที่ API จะเริ่มทำงาน
+download_model_from_drive(MODEL_FILE_ID, 'final_model_smart.keras')
+download_model_from_drive(NOTE_MAPPING_ID, 'note_mapping_smart.pkl')
+download_model_from_drive(DATA_NOTES_ID, 'data_notes_smart.pkl')
 app = FastAPI()
 
 # --- ตั้งค่า CORS ---

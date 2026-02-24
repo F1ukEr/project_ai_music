@@ -1,0 +1,10 @@
+flask
+flask-cors
+fastapi
+pydantic
+tensorflow
+numpy
+music21
+gdown
+tensorflow.keras.models
+pickle
