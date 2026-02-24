@@ -1,0 +1,9 @@
+**/node_modules/
+**/.venv/
+*.keras
+*.pkl
+*.h5
+backend/.venv/
+backend/__pycache__/
+*.keras
+*.pkl
