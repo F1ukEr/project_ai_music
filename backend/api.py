@@ -1,124 +1,124 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import numpy as np
-import pickle
-from tensorflow.keras.models import load_model
-from music21 import stream, note, chord, instrument
+from flask import Flask, request, jsonify, send_file
+from flask_cors import CORS
+import torch
+import scipy.io.wavfile
+from transformers import AutoProcessor, MusicgenForConditionalGeneration, LogitsProcessor, LogitsProcessorList
 import os
-import gdown
+import threading
+import uuid
 
-# 1. นำ File ID ที่ได้จากขั้นตอนแรกมาใส่ตรงนี้
-MODEL_FILE_ID = 'https://drive.google.com/file/d/1DfgicvajU1mSKldFkYcdmG2FhHrt06eA/view?usp=drive_link'
-NOTE_MAPPING_ID = 'https://drive.google.com/file/d/1ja5p7R6L088fuomIlMu8EbDHcwscFRPZ/view?usp=sharing'
-DATA_NOTES_ID = 'https://drive.google.com/file/d/1RL2vx32zVRAo0ZuX4ggrFiDpgFusmkOX/view?usp=sharing'
+app = Flask(__name__)
+# อนุญาตให้ React (หน้าบ้าน) ส่งข้อมูลเข้ามาได้
+CORS(app) 
 
-# 2. ฟังก์ชันตรวจสอบและดาวน์โหลดไฟล์
-def download_model_from_drive(file_id, output_filename):
-    # ถ้ายังไม่มีไฟล์นี้ในเครื่องเซิร์ฟเวอร์ ให้ดาวน์โหลด
-    if not os.path.exists(output_filename):
-        print(f"กำลังดาวน์โหลด {output_filename} จาก Google Drive...")
-        url = f'https://drive.google.com/uc?id={file_id}'
-        gdown.download(url, output_filename, quiet=False)
-        print(f"ดาวน์โหลด {output_filename} สำเร็จ!")
+# --- 1. โหลดโมเดลรอไว้ตั้งแต่ตอนเปิด Server ---
+print("⏳ กำลังโหลดสมอง MusicGen... (รอสักครู่)")
+processor = AutoProcessor.from_pretrained("facebook/musicgen-small")
+model = MusicgenForConditionalGeneration.from_pretrained("facebook/musicgen-small")
 
-# 3. สั่งรันฟังก์ชันดาวน์โหลดก่อนที่ API จะเริ่มทำงาน
-download_model_from_drive(MODEL_FILE_ID, 'final_model_smart.keras')
-download_model_from_drive(NOTE_MAPPING_ID, 'note_mapping_smart.pkl')
-download_model_from_drive(DATA_NOTES_ID, 'data_notes_smart.pkl')
-app = FastAPI()
+device = "cuda:0" if torch.cuda.is_available() else "cpu"
+model.to(device)
+print(f"✅ โหลดเสร็จสมบูรณ์! พร้อมทำงานบน: {device.upper()}")
 
-# --- ตั้งค่า CORS ---
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], 
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# 🟢 เก็บสถานะของแต่ละงานไว้ใน Dictionary
+tasks = {}
 
-# --- 1. โหลดโมเดลใหม่ (Smart Model) ---
-print("⏳ Loading Smart Model & Data...")
-try:
-    # ⚠️ แก้ชื่อไฟล์ให้ตรงกับอันใหม่
-    model = load_model('final_model_smart.keras')
-    
-    with open('note_mapping_smart.pkl', 'rb') as f:
-        note_to_int = pickle.load(f)
-        
-    with open('data_notes_smart.pkl', 'rb') as f:
-        data_notes = pickle.load(f)
-    
-    # สร้าง Dict แปลงกลับ (ตัวเลข -> โน้ต)
-    int_to_note = dict((number, note) for note, number in note_to_int.items())
-    print("✅ Smart Model Loaded Successfully!")
-    
-except Exception as e:
-    print(f"❌ Error loading model: {e}")
-    print("ตรวจสอบว่าไฟล์ _smart.keras และ .pkl อยู่ในโฟลเดอร์เดียวกับ api.py หรือไม่")
+# 🟢 คลาสพิเศษสำหรับแทรกแซงเข้าไปนับจำนวนรอบ (Tokens) ที่ AI กำลังสร้าง
+class ProgressLogitsProcessor(LogitsProcessor):
+    def __init__(self, task_id, max_tokens):
+        self.task_id = task_id
+        self.max_tokens = max_tokens
+        self.step = 0
 
-# --- ฟังก์ชันสุ่ม (Top-K Sampling) ---
-# ช่วยให้เพลงไม่เพี้ยน และไม่ซ้ำซากเกินไป
-def sample_top_k(preds, temperature=1.0, k=5):
-    preds = np.asarray(preds).astype('float64')
-    
-    # ปรับด้วย Temperature
-    preds = np.log(preds + 1e-7) / temperature
-    exp_preds = np.exp(preds)
-    preds = exp_preds / np.sum(exp_preds)
-    
-    # เลือก K ตัวเลือกที่ดีที่สุด
-    top_k_indices = np.argsort(preds)[-k:]
-    top_k_probs = preds[top_k_indices]
-    
-    # ปรับสัดส่วนใหม่ให้รวมกันได้ 1
-    top_k_probs = top_k_probs / np.sum(top_k_probs)
-    
-    # สุ่มเลือก
-    chosen_index = np.random.choice(top_k_indices, p=top_k_probs)
-    return chosen_index
+    def __call__(self, input_ids, scores):
+        self.step += 1
+        # คำนวณเปอร์เซ็นต์ (จำกัดไว้ไม่เกิน 99% จนกว่าจะเซฟไฟล์เสร็จ)
+        progress = int((self.step / self.max_tokens) * 100)
+        if progress > 99:
+            progress = 99
+        tasks[self.task_id]['progress'] = progress
+        return scores
 
-class GenerateRequest(BaseModel):
-    temperature: float = 0.6
-    length: int = 50
-
-@app.post("/generate")
-def generate_music(req: GenerateRequest):
-    global model, data_notes, note_to_int, int_to_note
-    
+# 🟢 ฟังก์ชันสำหรับรัน AI แบบเบื้องหลัง (ไม่ให้เว็บค้าง)
+def generate_music_thread(task_id, prompt, max_new_tokens):
     try:
-        # 1. สุ่มจุดเริ่มต้น (Seed) จากเพลงจริง
-        SEQUENCE_LENGTH = 100 # ต้องตรงกับที่เทรนมา
-        start_index = np.random.randint(0, len(data_notes) - SEQUENCE_LENGTH - 1)
+        inputs = processor(text=[prompt], padding=True, return_tensors="pt")
+        inputs = {k: v.to(device) for k, v in inputs.items()}
         
-        # ดึงโน้ต 100 ตัวแรกมาเป็นสารตั้งต้น
-        pattern = [note_to_int[char] for char in data_notes[start_index : start_index + SEQUENCE_LENGTH]]
+        # ใส่ตัวนับความคืบหน้าเข้าไปในโมเดล
+        progress_processor = ProgressLogitsProcessor(task_id, max_new_tokens)
+        logits_processor = LogitsProcessorList([progress_processor])
         
-        prediction_output = []
+        print(f"⚙️ [Task: {task_id}] กำลังประมวลผลคลื่นเสียง...")
+        audio_values = model.generate(
+            **inputs, 
+            max_new_tokens=max_new_tokens,
+            logits_processor=logits_processor
+        )
         
-        # 2. เริ่มแต่งเพลง
-        for i in range(req.length):
-            prediction_input = np.reshape(pattern, (1, len(pattern), 1))
-            
-            # ให้ AI ทาย
-            prediction = model.predict(prediction_input, verbose=0)
-            
-            # ใช้ Top-K Sampling เลือกตัวถัดไป
-            index = sample_top_k(prediction[0], req.temperature, k=3)
-            result = int_to_note[index]
-            
-            prediction_output.append(result)
-            
-            # ขยับหน้าต่างไปข้างหน้า
-            pattern.append(index)
-            pattern = pattern[1:len(pattern)]
-
-        return {
-            "status": "success",
-            "notes": prediction_output
-        }
+        sampling_rate = model.config.audio_encoder.sampling_rate
+        audio_data = audio_values[0, 0].cpu().numpy()
+        
+        output_filename = f"generated_music_{task_id}.wav"
+        scipy.io.wavfile.write(output_filename, rate=sampling_rate, data=audio_data)
+        
+        print(f"✅ [Task: {task_id}] สร้างเสร็จสมบูรณ์!")
+        tasks[task_id]['status'] = 'completed'
+        tasks[task_id]['progress'] = 100
+        tasks[task_id]['filename'] = output_filename
         
     except Exception as e:
-        print(f"Error: {e}")
-        return {"status": "error", "message": str(e)}
+        print(f"❌ เกิดข้อผิดพลาดใน Task {task_id}: {e}")
+        tasks[task_id]['status'] = 'failed'
+        tasks[task_id]['error'] = str(e)
 
-# วิธีรัน: uvicorn api:app --reload
+
+# --- 2. Endpoint: สั่งเริ่มงาน ---
+@app.route('/generate-task', methods=['POST'])
+def start_generation_task():
+    # 🟢 บังคับอ่านข้อมูลเป็น JSON และป้องกันกรณีข้อมูลว่างเปล่า
+    data = request.get_json(force=True, silent=True) or {}
+    print(f"📥 ข้อมูลที่ได้รับจาก React: {data}") # ปริ้นเช็คดูว่าเข้ามาจริงไหม
+    
+    # ดึงค่า prompt ถ้าไม่มีให้ใช้ค่าเริ่มต้น
+    prompt = data.get('prompt', 'upbeat electronic background music')
+    max_new_tokens = 512 
+    
+    task_id = str(uuid.uuid4())
+    tasks[task_id] = {'status': 'processing', 'progress': 0}
+    
+    thread = threading.Thread(target=generate_music_thread, args=(task_id, prompt, max_new_tokens))
+    thread.start()
+    
+    return jsonify({"task_id": task_id})
+
+
+# --- 3. Endpoint: เช็คสถานะการสร้าง ---
+@app.route('/status/<task_id>', methods=['GET'])
+def get_task_status(task_id):
+    task = tasks.get(task_id)
+    if not task:
+        return jsonify({"error": "ไม่พบข้อมูลงานนี้"}), 404
+    return jsonify(task)
+
+# --- 4. Endpoint: โหลดไฟล์เสียง (อัปเดตใหม่ รวมร่างแล้ว!) ---
+@app.route('/download/<task_id>', methods=['GET'])
+def download_music(task_id):
+    # กรณีที่ 1: เช็คในหน่วยความจำชั่วคราว (tasks)
+    task = tasks.get(task_id)
+    if task:
+        if task['status'] != 'completed':
+            return jsonify({"error": "งานยังไม่เสร็จสมบูรณ์"}), 400
+        filename = task['filename']
+    else:
+        # กรณีที่ 2: รีสตาร์ทเซิร์ฟเวอร์แล้วหน่วยความจำหาย ให้เดาชื่อไฟล์หาในเครื่องตรงๆ
+        filename = f"generated_music_{task_id}.wav"
+
+    # เช็คขั้นสุดท้ายว่าไฟล์มีอยู่จริงไหมก่อนส่งให้หน้าบ้าน
+    if os.path.exists(filename):
+        return send_file(filename, as_attachment=True, mimetype="audio/wav")
+    else:
+        return jsonify({"error": "ไม่พบไฟล์เสียงนี้แล้ว"}), 404
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8000, debug=False)

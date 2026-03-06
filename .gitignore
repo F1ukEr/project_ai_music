@@ -1,6 +1,13 @@
-**/node_modules/
-**/.venv/
+# ของฝั่ง Node.js / React
+node_modules/
+dist/
+.env
+
+# ของฝั่ง Python / Flask
+.venv/
 __pycache__/
-*.keras
-*.pkl
-*.env
+*.pyc
+
+# ไฟล์เสียงที่เจนออกมา (ไม่ควรเอาขึ้น Git เพราะไฟล์ใหญ่)
+*.wav
+*.mp3

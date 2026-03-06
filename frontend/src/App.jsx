@@ -1,120 +1,214 @@
-import { useState } from 'react'
-import axios from 'axios'
-import * as Tone from 'tone'
-import './App.css'
-
+import React, { useState, useEffect } from 'react';
+import MusicPlayer from './components/MusicPlayer';
+import HistoryList from './components/HistoryList';
 function App() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [status, setStatus] = useState('พร้อมทำงาน')
-  const [temp, setTemp] = useState(0.6) // ตัวแปรความมั่ว (Temperature)
-  const [isPlaying, setIsPlaying] = useState(false)
+  const [prompt, setPrompt] = useState('');
+  const [songTitle, setSongTitle] = useState('');
+  const [finishedTitle, setFinishedTitle] = useState('');
+  const [audioUrl, setAudioUrl] = useState(null);
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState('');
+  const [history, setHistory] = useState([]);
+
+  useEffect(() => {
+    const savedHistory = localStorage.getItem('musicHistory');
+    if (savedHistory) setHistory(JSON.parse(savedHistory));
+  }, []);
+
+  const generateRandomTitle = () => {
+    const coolTitles = [
+      "Digital Horizon", "Neon Distortion", "Midnight Echoes",
+      "Synthetic Soul", "Crawling Shadows", "Cyberpunk Rhapsody", "Electric Mirage", "Pixelated Dreams", "Future Nostalgia", "บัวลอยในสายลม", "เสียงของความว่างเปล่า", "แสงสุดท้ายของวัน", "ดนตรีแห่งความทรงจำ", "จังหวะของหัวใจที่แตกสลาย", "เสียงสะท้อนจากอดีต", "บทเพลงแห่งความหวัง", "เสียงกระซิบของจักรวาล", "ทำนองแห่งความฝัน", "เสียงเรียกจากความมืด", "บทเพลงที่ไม่มีคำบรรยาย"
+    ];
+    const randomIndex = Math.floor(Math.random() * coolTitles.length);
+    setSongTitle(coolTitles[randomIndex]);
+  };
 
   const generateMusic = async () => {
-    try {
-      setIsLoading(true)
-      setIsPlaying(false)
-      setStatus('🧠 AI กำลังแต่งเพลง...')
-      
-      await Tone.start()
-
-      // ส่งค่า temp ที่ user ปรับ ไปให้ backend
-      const response = await axios.post('http://127.0.0.1:8000/generate', {
-        length: 60,
-        temperature: parseFloat(temp) 
-      })
-
-      const notes = response.data.notes
-      setStatus(`🎵 ได้มาแล้ว ${notes.length} โน้ต! กำลังเล่น...`)
-      setIsPlaying(true) // เริ่ม Animation
-      
-      playNotes(notes)
-
-    } catch (error) {
-      console.error(error)
-      setStatus('❌ เกิดข้อผิดพลาด: ' + error.message)
-      setIsLoading(false)
-      setIsPlaying(false)
+    if (!prompt.trim()) {
+      alert("กรุณาพิมพ์ข้อความก่อนสร้างเพลง!");
+      return;
     }
-  }
 
-  const playNotes = (notes) => {
-    // ใช้เสียงที่นุ่มขึ้น (AMSynth) + ใส่ Reverb ให้ดูแพง
-    const reverb = new Tone.Reverb(2).toDestination();
-    const synth = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type: "triangle" }, // เสียงนุ่มๆ คล้าย Flute/Piano
-      envelope: { attack: 0.02, decay: 0.1, sustain: 0.3, release: 1 }
-    }).connect(reverb);
+    setIsLoading(true);
+    setError('');
+    setAudioUrl(null);
+    setProgress(0); // 🟢 เริ่มต้นที่ 0%
 
-    const now = Tone.now()
+    try {
+      // 1. สั่งเริ่มงาน ขอรหัส task_id จาก Backend
+      const startResponse = await fetch('http://127.0.0.1:8000/generate-task', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: prompt }),
+      });
 
-    notes.forEach((note, index) => {
-      let notesToPlay = note;
-      
-      // แปลงคอร์ด เช่น "4.7.10" ให้เป็น Array ["E4", "G4", "B4"] (สมมติ)
-      // แต่ในที่นี้เพื่อความง่าย เราจะเล่นแค่โน้ตตัวแรกของคอร์ดไปก่อน
-      if (note.includes('.') || !isNaN(note)) {
-         // (ส่วนนี้ถ้าอยากให้เล่นคอร์ดจริงต้องมี mapping ที่ละเอียดกว่านี้)
-         notesToPlay = "C4" // Fallback
-      }
+      if (!startResponse.ok) throw new Error('ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้');
+      const { task_id } = await startResponse.json();
 
-      // ใส่ความเป็นมนุษย์ (Humanize)
-      // สุ่มความดัง (Velocity) และจังหวะเหลื่อมนิดหน่อย
-      const velocity = 0.5 + Math.random() * 0.5; 
-      const timeOffset = index * 0.4; // เล่นเร็วขึ้นนิดนึง (0.4s)
+      // 2. ฟังก์ชันวนเช็คสถานะ
+      const checkStatus = async () => {
+        try {
+          const statusRes = await fetch(`http://127.0.0.1:8000/status/${task_id}`);
+          const data = await statusRes.json();
 
-      synth.triggerAttackRelease(notesToPlay, "8n", now + timeOffset, velocity)
-    })
+          // อัปเดต % จาก Backend มาใส่ใน React
+          setProgress(data.progress || 0);
 
-    // จบการทำงาน
-    setTimeout(() => {
-      setIsLoading(false)
-      setIsPlaying(false)
-      setStatus('✨ เล่นจบแล้ว')
-    }, notes.length * 400 + 1000)
-  }
+          if (data.status === 'completed') {
+            // 3. ถ้าสำเร็จ 100% ให้ดาวน์โหลดไฟล์มาเล่น
+            const audioRes = await fetch(`http://127.0.0.1:8000/download/${task_id}`);
+            const audioBlob = await audioRes.blob();
+
+            const url = URL.createObjectURL(audioBlob);
+            const finalTitle = songTitle.trim() === '' ? 'Untitled Track' : songTitle;
+
+            setFinishedTitle(finalTitle);
+            setAudioUrl(url);
+
+            // บันทึกประวัติ
+            const newHistoryItem = {
+              id: Date.now(),
+              taskId: task_id,
+              title: finalTitle,
+              prompt: prompt,
+              date: new Date().toLocaleTimeString('th-TH')
+            };
+            const updatedHistory = [newHistoryItem, ...history].slice(0, 5);
+            setHistory(updatedHistory);
+            localStorage.setItem('musicHistory', JSON.stringify(updatedHistory));
+
+            setIsLoading(false);
+          } else if (data.status === 'failed') {
+            setError(`สร้างเพลงล้มเหลว: ${data.error}`);
+            setIsLoading(false);
+          } else {
+            // ถ้ายืนยันว่ายัง processing อยู่ ให้รอ 2 วินาทีแล้วถามใหม่
+            setTimeout(checkStatus, 2000);
+          }
+        } catch (err) {
+          console.error(err);
+          setError('การเชื่อมต่อขาดหายระหว่างรอเพลง');
+          setIsLoading(false);
+        }
+      };
+
+      // เริ่มการถามครั้งแรก
+      setTimeout(checkStatus, 1500);
+
+    } catch (err) {
+      console.error(err);
+      setError('ไม่สามารถส่งคำสั่งเริ่มงานได้');
+      setIsLoading(false);
+    }
+  };
+
+  // ดึง Prompt จากประวัติกลับมาใช้ใหม่
+  const reusePrompt = (oldPrompt, oldTitle) => {
+    setPrompt(oldPrompt);
+    setSongTitle(oldTitle);
+  };
+
+  const playFromHistory = (taskId, title) => {
+    // โหลดไฟล์เสียงตรงๆ จาก Backend ตามรหัส
+    const url = `http://127.0.0.1:8000/download/${taskId}`;
+    setAudioUrl(url);
+    setFinishedTitle(title);
+    window.scrollTo({ top: 0, behavior: 'smooth' }); // เลื่อนจอกลับขึ้นไปด้านบน
+  };
 
   return (
-    <div className="container">
-      <h1>AI Composer</h1>
-      <p>สร้างทำนองเพลงด้วย Deep Learning</p>
+    <div className="max-w-4xl mx-auto w-full p-4 text-center mt-6 ">
+      <div className="p-8 rounded-2xl bg-dark-900/60 backdrop-blur border border-gray-700/50 shadow-2xl">
+        <h1 className="text-4xl font-bold uppercase mb-3 text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-white">
+          AI Music Studio 🎵
+        </h1>
+        <p className="text-gray-400 mb-6">พิมพ์แนวเพลง จากนั้นกดปุ่ม "Generate Music" เพื่อสร้างเพลง</p>
 
-      {/* Animation หลอกๆ เวลาเล่นเพลง */}
-      <div className="visualizer">
-        {isPlaying && [1,2,3,4,5].map(i => (
-          <div key={i} className="bar" style={{animationDelay: `${i*0.1}s`}}></div>
-        ))}
-      </div>
-
-      <div className="controls">
-        <label>
-          ระดับความคิดสร้างสรรค์ (Temperature): {temp}
-        </label>
-        <input 
-          type="range" 
-          min="0.2" 
-          max="1.2" 
-          step="0.1" 
-          value={temp}
-          onChange={(e) => setTemp(e.target.value)}
-        />
-        <div style={{fontSize: '0.8rem', color: '#64748b', marginTop: '5px'}}>
-          <span>(เรียบง่าย)</span> <span style={{float:'right'}}>(หลุดโลก)</span>
+        {/* ช่องใส่ชื่อเพลง */}
+        <div className="mb-4 text-left">
+          <label className="block text-gray-400 text-sm font-bold mb-2 focus:shadow-[0_0_20px_rgba(34,197,94,0.2)]">ชื่อเพลง</label>
+          <div className="flex gap-4">
+            <input
+              type="text"
+              value={songTitle}
+              onChange={(e) => setSongTitle(e.target.value)}
+              placeholder="ตั้งชื่อเพลง หรือสุ่มชื่อ"
+              className="flex-1 p-3 text-lg rounded-lg border border-gray-600 bg-gray-800 text-white placeholder-gray-500 focus:outline-none focus:border-dark-500 focus:ring-1 focus:ring-green-500"
+            />
+            <button
+              onClick={generateRandomTitle}
+              title="สุ่มชื่อเพลง"
+              className="group flex items-center justify-center p-3 bg-dark-800/80 backdrop-blur-sm border border-gray-600 hover:border-green-500 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 hover:shadow-[0_0_15px_rgba(34,197,94,0.4)]"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+                // สีพื้นฐานเป็นสีเทา แต่พอเอาเมาส์ชี้ปุ่ม (group-hover) จะสว่างเป็นสีเขียว
+                className="w-6 h-6 text-gray-400 group-hover:text-green-400 transition-colors"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
+      
+        {/* ช่องใส่ Prompt */}
+        <textarea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="rock, pop, jazz, hip-hop, etc หรือ เพลงช้าๆ เศร้าๆ"
+          rows={3}
+          className="w-full p-3 text-lg rounded-lg border border-gray-600 bg-gray-800 text-white placeholder-gray-500 mb-4 focus:outline-none focus:border-dark-500 focus:ring-1 focus:ring-green-500"
+        />
+        <div className="absolute bottom-1 right-3 text-md font-medium text-gray-500">
+          {prompt?.length || 0} / 200
+        </div>
+        <button
+          onClick={generateMusic}
+          disabled={isLoading}
+          className={`w-full py-4 px-6 text-xl font-bold rounded-xl transition-all duration-300 ${isLoading
+            ? 'bg-green-600 cursor-not-allowed text-green-400 shadow-[0_0_20px_rgba(72,187,120,0.7)]'
+            : 'bg-dark-600 hover:bg-green-500 text-white shadow-[0_0_15px_rgba(34,197,94,0.5)]'
+            }`}
+        >
+          {isLoading ? '⏳ กำลังแต่งเพลงและประมวลผลเสียง (รอประมาณ 5-15 นาที)...' : '✨ Generate Music'}
+          {isLoading && (
+            <div className="mt-4 w-full">
+              <div className="flex justify-between text-sm text-white font-medium mb-1 px-1">
+                <span>AI กำลังทำงาน (ใช้เวลาประมาณ 5-15 นาที)</span>
+                <span>{progress}%</span>
+              </div>
+              <div className="w-full bg-dark-800 rounded-full h-3 border border-dark-700 overflow-hidden shadow-inner">
+                <div
+                  className="bg-gradient-to-r from-green-400 to-white h-3 rounded-full transition-all duration-500 ease-out shadow-[0_0_10px_rgba(34,197,94,0.8)]"
+                  style={{ width: `${progress}%` }}
+                ></div>
+              </div>
+            </div>)}
+        </button>
+
+
+        {error && <div className="text-red-500 mt-5 font-bold">❌ {error}</div>}
+
+        {/* 🟢 คลื่นเสียง Waveform Player */}
+        <MusicPlayer audioUrl={audioUrl} title={finishedTitle} />
       </div>
 
-      <button 
-        className="btn-generate"
-        onClick={generateMusic} 
-        disabled={isLoading}
-      >
-        {isLoading ? 'กำลังประมวลผล...' : '✨ สร้างเพลงใหม่'}
-      </button>
-
-      <div className="status-box">
-        {status}
-      </div>
+      {/* 🟢 ประวัติการสร้าง (History) */}
+      <HistoryList history={history} onReusePrompt={reusePrompt} onPlayHistory={playFromHistory} />
     </div>
-  )
+
+  );
 }
 
-export default App
+export default App;
