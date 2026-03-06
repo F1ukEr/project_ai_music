@@ -81,7 +81,7 @@ def start_generation_task():
     
     # ดึงค่า prompt ถ้าไม่มีให้ใช้ค่าเริ่มต้น
     prompt = data.get('prompt', 'upbeat electronic background music')
-    max_new_tokens = 512 
+    max_new_tokens = 3000  # ปรับได้ตามต้องการ (ยิ่งมากยิ่งใช้เวลานาน) 
     
     task_id = str(uuid.uuid4())
     tasks[task_id] = {'status': 'processing', 'progress': 0}
