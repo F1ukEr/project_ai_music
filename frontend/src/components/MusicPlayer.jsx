@@ -5,7 +5,7 @@ function MusicPlayer({ audioUrl, title }) {
   const waveformRef = useRef(null);
   const wavesurfer = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(0.8); // 🟢 State ระดับเสียง (0.0 - 1.0) เริ่มที่ 80%
+  const [volume, setVolume] = useState(0.5); // ระดับเสียงเริ่มต้น (0.0 - 1.0)
 
   useEffect(() => {
     if (audioUrl && waveformRef.current) {
@@ -13,8 +13,8 @@ function MusicPlayer({ audioUrl, title }) {
 
       wavesurfer.current = WaveSurfer.create({
         container: waveformRef.current,
-        waveColor: '#4b5563', // เปลี่ยนสีคลื่นตอนยังไม่เล่นเป็นสีเทา (gray-600)
-        progressColor: '#4ade80', // 🟢 เปลี่ยนสีคลื่นที่เล่นแล้วเป็นสีเขียว (green-400)
+        waveColor: '#4b5563', 
+        progressColor: '#4ade80', 
         cursorColor: '#ffffff',
         barWidth: 3,
         barRadius: 3,
@@ -25,7 +25,7 @@ function MusicPlayer({ audioUrl, title }) {
       wavesurfer.current.load(audioUrl);
 
       wavesurfer.current.on('ready', () => {
-        wavesurfer.current.setVolume(volume); // 🟢 ตั้งระดับเสียงตอนโหลดเสร็จ
+        wavesurfer.current.setVolume(volume); //ตั้งระดับเสียงตอนโหลดเสร็จ
         wavesurfer.current.play();
         setIsPlaying(true);
       });
@@ -36,7 +36,7 @@ function MusicPlayer({ audioUrl, title }) {
     }
   }, [audioUrl]);
 
-  // 🟢 คอยปรับเสียงเมื่อผู้ใช้เลื่อนหลอด Slider
+  // ปรับเสียง
   useEffect(() => {
     if (wavesurfer.current) {
       wavesurfer.current.setVolume(volume);
@@ -80,12 +80,12 @@ function MusicPlayer({ audioUrl, title }) {
           className="w-16 h-16 flex items-center justify-center bg-green-600 hover:bg-green-500 text-white rounded-full transition-all duration-300 hover:scale-105   hover:shadow-[0_0_15px_rgba(34,197,94,0.4)]"
         >
           {isPlaying ? (
-            // SVG Pause (หยุดชั่วคราว)
+            //  Pause (หยุดชั่วคราว)
             <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" className="w-8 h-8">
               <path fillRule="evenodd" d="M6.75 5.25a.75.75 0 01.75-.75H9a.75.75 0 01.75.75v13.5a.75.75 0 01-.75.75H7.5a.75.75 0 01-.75-.75V5.25zm7.5 0a.75.75 0 01.75-.75h1.5a.75.75 0 01.75.75v13.5a.75.75 0 01-.75.75h-1.5a.75.75 0 01-.75-.75V5.25z" clipRule="evenodd" />
             </svg>
           ) : (
-            // SVG Play (เล่น)
+            //  Play (เล่น)
             <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" className="w-8 h-8 ml-1">
               <path fillRule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z" clipRule="evenodd" />
             </svg>

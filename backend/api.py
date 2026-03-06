@@ -20,10 +20,9 @@ device = "cuda:0" if torch.cuda.is_available() else "cpu"
 model.to(device)
 print(f"✅ โหลดเสร็จสมบูรณ์! พร้อมทำงานบน: {device.upper()}")
 
-# 🟢 เก็บสถานะของแต่ละงานไว้ใน Dictionary
 tasks = {}
 
-# 🟢 คลาสพิเศษสำหรับแทรกแซงเข้าไปนับจำนวนรอบ (Tokens) ที่ AI กำลังสร้าง
+
 class ProgressLogitsProcessor(LogitsProcessor):
     def __init__(self, task_id, max_tokens):
         self.task_id = task_id
@@ -39,7 +38,7 @@ class ProgressLogitsProcessor(LogitsProcessor):
         tasks[self.task_id]['progress'] = progress
         return scores
 
-# 🟢 ฟังก์ชันสำหรับรัน AI แบบเบื้องหลัง (ไม่ให้เว็บค้าง)
+# 🟢 ฟังก์ชันสำหรับรัน AI แบบเบื้องหลัง 
 def generate_music_thread(task_id, prompt, max_new_tokens):
     try:
         inputs = processor(text=[prompt], padding=True, return_tensors="pt")
@@ -93,7 +92,7 @@ def start_generation_task():
     return jsonify({"task_id": task_id})
 
 
-# --- 3. Endpoint: เช็คสถานะการสร้าง ---
+# --- 3. เช็คสถานะการสร้าง ---
 @app.route('/status/<task_id>', methods=['GET'])
 def get_task_status(task_id):
     task = tasks.get(task_id)
@@ -101,10 +100,10 @@ def get_task_status(task_id):
         return jsonify({"error": "ไม่พบข้อมูลงานนี้"}), 404
     return jsonify(task)
 
-# --- 4. Endpoint: โหลดไฟล์เสียง (อัปเดตใหม่ รวมร่างแล้ว!) ---
+# --- 4.โหลดไฟล์เสียง  ---
 @app.route('/download/<task_id>', methods=['GET'])
 def download_music(task_id):
-    # กรณีที่ 1: เช็คในหน่วยความจำชั่วคราว (tasks)
+    # กรณีที่ 1: เช็คในหน่วยความจำชั่วคราว 
     task = tasks.get(task_id)
     if task:
         if task['status'] != 'completed':
@@ -114,7 +113,7 @@ def download_music(task_id):
         # กรณีที่ 2: รีสตาร์ทเซิร์ฟเวอร์แล้วหน่วยความจำหาย ให้เดาชื่อไฟล์หาในเครื่องตรงๆ
         filename = f"generated_music_{task_id}.wav"
 
-    # เช็คขั้นสุดท้ายว่าไฟล์มีอยู่จริงไหมก่อนส่งให้หน้าบ้าน
+    # มีอยู่จริงไหมก่อนส่ง
     if os.path.exists(filename):
         return send_file(filename, as_attachment=True, mimetype="audio/wav")
     else:

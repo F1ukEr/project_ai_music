@@ -16,7 +16,7 @@ function HistoryList({ history, onReusePrompt, onPlayHistory }) {
             </div>
 
             <div className="flex-2 gap-2 mt-2 sm:mt-0">
-              {/* 🟢 ปุ่มเล่นเพลงจากประวัติ (จะโชว์ก็ต่อเมื่อมี taskId) */}
+              {/* ปุ่มเล่นเพลงจากประวัติ (จะโชว์ก็ต่อเมื่อมี taskId) */}
               {item.taskId && (
                 <button
                   onClick={() => onPlayHistory(item.taskId, item.title)}
@@ -25,7 +25,7 @@ function HistoryList({ history, onReusePrompt, onPlayHistory }) {
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    fill="currentColor" /* ใช้ currentColor เพื่อให้สีเปลี่ยนตาม text-gray-300 -> text-green-400 */
+                    fill="currentColor" 
                     viewBox="0 0 24 24"
                     className="w-4 h-4 transition-transform group-hover:scale-110"
                   >

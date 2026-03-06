@@ -39,7 +39,7 @@ function App() {
 
     try {
       // 1. สั่งเริ่มงาน ขอรหัส task_id จาก Backend
-      const startResponse = await fetch('http://127.0.0.1:8000/generate-task', {
+      const startResponse = await fetch('https://f1uke-music-ai-backend.hf.space/generate-task', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: prompt }),
@@ -51,7 +51,7 @@ function App() {
       // 2. ฟังก์ชันวนเช็คสถานะ
       const checkStatus = async () => {
         try {
-          const statusRes = await fetch(`http://127.0.0.1:8000/status/${task_id}`);
+          const statusRes = await fetch(`https://f1uke-music-ai-backend.hf.space/status/${task_id}`);
           const data = await statusRes.json();
 
           // อัปเดต % จาก Backend มาใส่ใน React
@@ -59,7 +59,7 @@ function App() {
 
           if (data.status === 'completed') {
             // 3. ถ้าสำเร็จ 100% ให้ดาวน์โหลดไฟล์มาเล่น
-            const audioRes = await fetch(`http://127.0.0.1:8000/download/${task_id}`);
+            const audioRes = await fetch(`https://f1uke-music-ai-backend.hf.space/download/${task_id}`);
             const audioBlob = await audioRes.blob();
 
             const url = URL.createObjectURL(audioBlob);
@@ -113,7 +113,7 @@ function App() {
 
   const playFromHistory = (taskId, title) => {
     // โหลดไฟล์เสียงตรงๆ จาก Backend ตามรหัส
-    const url = `http://127.0.0.1:8000/download/${taskId}`;
+    const url = `https://f1uke-music-ai-backend.hf.space/download/${taskId}`;
     setAudioUrl(url);
     setFinishedTitle(title);
     window.scrollTo({ top: 0, behavior: 'smooth' }); // เลื่อนจอกลับขึ้นไปด้านบน
@@ -149,7 +149,6 @@ function App() {
                 viewBox="0 0 24 24"
                 strokeWidth={2}
                 stroke="currentColor"
-                // สีพื้นฐานเป็นสีเทา แต่พอเอาเมาส์ชี้ปุ่ม (group-hover) จะสว่างเป็นสีเขียว
                 className="w-6 h-6 text-gray-400 group-hover:text-green-400 transition-colors"
               >
                 <path
@@ -161,7 +160,7 @@ function App() {
             </button>
           </div>
         </div>
-      
+
         {/* ช่องใส่ Prompt */}
         <textarea
           value={prompt}
@@ -200,11 +199,11 @@ function App() {
 
         {error && <div className="text-red-500 mt-5 font-bold">❌ {error}</div>}
 
-        {/* 🟢 คลื่นเสียง Waveform Player */}
+        {/* Waveform Player */}
         <MusicPlayer audioUrl={audioUrl} title={finishedTitle} />
       </div>
 
-      {/* 🟢 ประวัติการสร้าง (History) */}
+      {/*  ประวัติการสร้าง */}
       <HistoryList history={history} onReusePrompt={reusePrompt} onPlayHistory={playFromHistory} />
     </div>
 
