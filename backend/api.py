@@ -18,6 +18,7 @@ import uuid
 from datetime import datetime
 import firebase_admin
 from firebase_admin import credentials, firestore
+import urllib.parse
 
 # --- 1. ตั้งค่าและเชื่อมต่อ Firebase แบบรองรับ Cloud ---
 try:
@@ -93,9 +94,12 @@ def generate_music_thread(task_id, prompt, max_new_tokens, title):
                 
         sampling_rate = model.config.audio_encoder.sampling_rate
         audio_data = audio_values[0, 0].cpu().numpy()
-                
-        output_filename = f"{title}.wav"
-        scipy.io.wavfile.write(output_filename, rate=sampling_rate, data=audio_data)
+
+        os.makedirs("generated_music", exist_ok=True)
+        output_filename = f"generated_music/{task_id}.wav"       
+        scipy.io.wavfile.write(output_filename, rate=sampling_rate, data=audio_data) 
+        #output_filename = f"{title}.wav"
+        #scipy.io.wavfile.write(output_filename, rate=sampling_rate, data=audio_data)
         
         end_time = time.time() # 🟢 สิ้นสุดการจับเวลา
         duration = end_time - start_time # 🟢 คำนวณเวลาที่ใช้ไป
@@ -158,11 +162,16 @@ def get_task_status(task_id):
 
 @app.route('/download/<task_id>', methods=['GET'])
 def download_music(task_id):
-    doc = db.collection('tasks').document(task_id).get()
-    if doc.exists:
-        task_data = doc.to_dict()
-        if task_data['status'] == 'completed' and os.path.exists(task_data['filename']):
-            return send_file(task_data['filename'], as_attachment=True, mimetype="audio/wav")
+    file_path = f"generated_music/{task_id}.wav"
+    if os.path.exists(file_path):
+        doc = db.collection('tasks').document(task_id).get()
+        title = "Untitled_Track"
+        if doc.exists:
+            data = doc.to_dict()
+            # ตัดช่องว่างทิ้งและป้องกันอักขระพิเศษนิดหน่อย
+            title = data.get('title', 'Untitled_Track').strip()
+        encoded_title = urllib.parse.quote(f"{title}.wav")
+        return send_file(file_path, as_attachment=True, download_name=encoded_title, mimetype="audio/wav")
     return jsonify({"error": "File not found"}), 404
 
 @app.route('/history', methods=['GET'])
