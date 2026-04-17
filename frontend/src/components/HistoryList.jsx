@@ -1,6 +1,6 @@
 import React from 'react';
 
-function HistoryList({ history, onReusePrompt, onPlayHistory }) {
+function HistoryList({ history, onReusePrompt, onPlayHistory, onLoadMore, hasMore, isLoadingMore }) {
   if (!history || history.length === 0) return null;
 
   return (
