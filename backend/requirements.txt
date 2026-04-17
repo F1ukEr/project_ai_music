@@ -4,5 +4,11 @@ fastapi
 pydantic
 tensorflow-cpu
 numpy
-music21
-gdown
+scipy
+transformers
+torch
+sentence-transformers
+pydub
+librosa
+supabase
+firebase-admin
