@@ -78,7 +78,7 @@ def generate_music_thread(task_id, prompt, max_new_tokens):
         progress_processor = ProgressLogitsProcessor(task_id, max_new_tokens)
         logits_processor = LogitsProcessorList([progress_processor])
                 
-        print(f"⚙️ [Task: {task_id[:6]}] กำลังแต่งเพลง '{title}' '{prompt}'...")
+        print(f"⚙️ [Task: {task_id[:6]}] กำลังแต่งเพลง '{title}'")
         audio_values = model.generate(
             **inputs, 
             max_new_tokens=max_new_tokens, 
@@ -138,7 +138,7 @@ def start_generation_task():
         'created_at': created_at
     })
         
-    threading.Thread(target=generate_music_thread, args=(task_id, prompt, max_new_tokens)).start()
+    threading.Thread(target=generate_music_thread, args=(task_id, prompt, max_new_tokens, title)).start()
     return jsonify({"task_id": task_id})
 
 @app.route('/status/<task_id>', methods=['GET'])
