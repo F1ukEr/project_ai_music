@@ -1,5 +1,6 @@
 import os
-import time # 🟢 นำเข้าโมดูลจับเวลา
+import time
+from turtle import title # 🟢 นำเข้าโมดูลจับเวลา
 local_path = "E:/Project/music-ai-project/hf_cache"
 if os.path.exists(local_path):
     os.environ["HF_HOME"] = local_path
@@ -83,7 +84,7 @@ def generate_music_thread(task_id, prompt, max_new_tokens):
         progress_processor = ProgressLogitsProcessor(task_id, max_new_tokens)
         logits_processor = LogitsProcessorList([progress_processor])
                 
-        print(f"⚙️ [Task: {task_id[:6]}] กำลังแต่งเพลง '{title}'")
+        print(f"⚙️ [Task: {task_id[:6]}] กำลังแต่งเพลง '{title}'...")
         audio_values = model.generate(
             **inputs, 
             max_new_tokens=max_new_tokens, 
@@ -167,13 +168,14 @@ def download_music(task_id):
 def get_history():
     last_date = request.args.get('last_date')
     limit = 10 # จำนวนรายการที่ต้องการดึงเพิ่ม
-    docs = db.collection('tasks')\
+    query = db.collection('tasks')\
              .where('status', '==', 'completed')\
              .order_by('created_at', direction=firestore.Query.DESCENDING)\
              .limit(limit)
-    
     if last_date:
-        docs = docs.start_after({'created_at': last_date})
+        query = query.start_after({'created_at': last_date})
+    docs = query.stream()
+    
     history_list = []
     for doc in docs:
         d = doc.to_dict()
