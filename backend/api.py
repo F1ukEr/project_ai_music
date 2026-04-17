@@ -1,6 +1,11 @@
 import os
 import time # 🟢 นำเข้าโมดูลจับเวลา
-os.environ["HF_HOME"] = "E:/Project/music-ai-project/hf_cache"
+local_path = "E:/Project/music-ai-project/hf_cache"
+if os.path.exists(local_path):
+    os.environ["HF_HOME"] = local_path
+    print(f"🏠 Running on Local: Using cache at {local_path}")
+else:
+    print("☁️ Running on Hugging Face: Using default cache location")
 import json
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
