@@ -74,7 +74,7 @@ class ProgressLogitsProcessor(LogitsProcessor):
             self.doc_ref.update({'progress': progress})
         return scores
 
-def generate_music_thread(task_id, prompt, max_new_tokens):
+def generate_music_thread(task_id, prompt, max_new_tokens, title):
     start_time = time.time() # 🟢 เริ่มจับเวลา!
     doc_ref = db.collection('tasks').document(task_id)
     try:
