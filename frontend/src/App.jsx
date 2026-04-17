@@ -39,9 +39,12 @@ function App() {
 
     try {
       // สร้าง URL พร้อมเช็คว่าต้องแนบ last_date ไปไหม
-      const url = isLoadMore && lastDate
+      /*const url = isLoadMore && lastDate
         ? `http://localhost:8000/history?last_date=${encodeURIComponent(lastDate)}`
-        : 'http://localhost:8000/history';
+        : 'http://localhost:8000/history';*/
+      const url = isLoadMore && lastDate
+        ? `https://f1uke-music-ai-backend.hf.space/history?last_date=${encodeURIComponent(lastDate)}`
+        : 'https://f1uke-music-ai-backend.hf.space/history';
 
       const res = await fetch(url);
       const data = await res.json();
