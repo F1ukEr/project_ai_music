@@ -13,9 +13,34 @@ from datetime import datetime
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-cred = credentials.Certificate("serviceKey.json")
-firebase_admin.initialize_app(cred)
-db = firestore.client() 
+# --- 1. ตั้งค่าและเชื่อมต่อ Firebase แบบรองรับ Cloud ---
+try:
+    # 🟢 1. ลองหาตัวแปรลับ (Secrets) จาก Environment ก่อน (สำหรับบน Hugging Face)
+    firebase_secrets = os.environ.get('FIREBASE_CREDENTIALS')
+    
+    if firebase_secrets:
+        # ถ้ามีข้อมูลลับ ให้แปลงกลับเป็น Dictionary
+        cred_dict = json.loads(firebase_secrets)
+        cred = credentials.Certificate(cred_dict)
+        print("✅ เชื่อมต่อ Firebase สำเร็จ (ผ่าน Environment Variables)")
+    else:
+        # 🟢 2. ถ้าไม่มีตัวแปรลับ ให้หาไฟล์ .json ในเครื่อง (สำหรับรัน Local)
+        # เช็คด้วยว่ามีไฟล์อยู่จริงไหมก่อนเรียกใช้
+        if os.path.exists("serviceKey.json"):
+            cred = credentials.Certificate("serviceKey.json")
+            print("✅ เชื่อมต่อ Firebase สำเร็จ (ผ่านไฟล์ serviceKey.json)")
+        else:
+            raise FileNotFoundError("ไม่พบข้อมูลรับรอง Firebase!")
+
+    # สั่งเชื่อมต่อ
+    if not firebase_admin._apps:
+        firebase_admin.initialize_app(cred)
+    db = firestore.client()
+    
+except Exception as e:
+    print(f"❌ ระบบไม่สามารถเชื่อมต่อ Firebase ได้: {e}")
+    # ในกรณีจริง ถ้าระบบเชื่อม DB ไม่ได้ อาจจะต้องปิด Server ทิ้ง
+    # exit(1)
 
 app = Flask(__name__)
 CORS(app) 
