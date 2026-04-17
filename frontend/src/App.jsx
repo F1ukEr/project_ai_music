@@ -17,6 +17,15 @@ function App() {
   const [hasMore, setHasMore] = useState(true); // สำหรับเช็คว่ามีรายการเก่ากว่านี้อีกไหม
   const [isLoadingMore, setIsLoadingMore] = useState(false); // สำหรับสถานะการโหลดรายการเก่า
 
+  const [UserID] = useState(() => {
+    let id = localStorage.getItem('user_id');
+    if (!id) {
+      id = 'user_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('user_id', id);
+    }
+    return id;
+  });
+
 
   useEffect(() => {
     // โหลดประวัติจาก Database ผ่าน API
@@ -43,8 +52,8 @@ function App() {
         ? `http://localhost:8000/history?last_date=${encodeURIComponent(lastDate)}`
         : 'http://localhost:8000/history';*/
       const url = isLoadMore && lastDate
-        ? `https://f1uke-music-ai-backend.hf.space/history?last_date=${encodeURIComponent(lastDate)}`
-        : 'https://f1uke-music-ai-backend.hf.space/history';
+        ? `https://f1uke-music-ai-backend.hf.space/history?user_id=${UserID}&last_date=${encodeURIComponent(lastDate)}`
+        : `https://f1uke-music-ai-backend.hf.space/history?user_id=${UserID}`;
 
       const res = await fetch(url);
       const data = await res.json();
@@ -106,7 +115,7 @@ function App() {
       const startResponse = await fetch('https://f1uke-music-ai-backend.hf.space/generate-task', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt, title: songTitle.trim() === '' ? 'Untitled Track' : songTitle }),
+        body: JSON.stringify({ prompt: prompt, title: songTitle.trim() === '' ? 'Untitled Track' : songTitle, user_id: UserID })
       });
 
       if (!startResponse.ok) throw new Error('ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้');

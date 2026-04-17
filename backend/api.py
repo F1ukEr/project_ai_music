@@ -94,7 +94,7 @@ def generate_music_thread(task_id, prompt, max_new_tokens, title):
         sampling_rate = model.config.audio_encoder.sampling_rate
         audio_data = audio_values[0, 0].cpu().numpy()
                 
-        output_filename = f"{title.replace(' ', '_')}.wav"
+        output_filename = f"{title}.wav"
         scipy.io.wavfile.write(output_filename, rate=sampling_rate, data=audio_data)
         
         end_time = time.time() # 🟢 สิ้นสุดการจับเวลา
@@ -134,6 +134,7 @@ def start_generation_task():
     
     db.collection('tasks').document(task_id).set({
         'id': task_id,
+        'user_id': data.get('user_id', 'anonymous'), # 🟢 บันทึก User ID ลงฐานข้อมูล
         'title': title, # 🟢 บันทึกชื่อเพลงลงฐานข้อมูล
         'prompt': prompt,
         'status': 'processing',
@@ -172,6 +173,10 @@ def get_history():
              .where('status', '==', 'completed')\
              .order_by('created_at', direction=firestore.Query.DESCENDING)\
              .limit(limit)
+    
+    user_id = request.args.get('user_id') # 🟢 รับ User ID มาจาก React เพื่อดึงประวัติของผู้ใช้คนนั้นเท่านั้น
+    if user_id:
+        query = query.where('user_id', '==', user_id)
     if last_date:
         query = query.start_after({'created_at': last_date})
     docs = query.stream()
