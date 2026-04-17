@@ -1,6 +1,10 @@
 import os
 import time
 from turtle import title # 🟢 นำเข้าโมดูลจับเวลา
+from dotenv import load_dotenv
+load_dotenv() # โหลดตัวแปรลับจากไฟล์ .env
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 local_path = "E:/Project/music-ai-project/hf_cache"
 if os.path.exists(local_path):
     os.environ["HF_HOME"] = local_path
@@ -10,11 +14,13 @@ else:
 import json
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
+import tempfile
 import torch
 import scipy.io.wavfile
 from transformers import AutoProcessor, MusicgenForConditionalGeneration, LogitsProcessor, LogitsProcessorList
 import threading
 import uuid
+from supabase import create_client, Client
 from datetime import datetime
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -43,12 +49,17 @@ try:
     if not firebase_admin._apps:
         firebase_admin.initialize_app(cred)
     db = firestore.client()
-    
+
+
 except Exception as e:
     print(f"❌ ระบบไม่สามารถเชื่อมต่อ Firebase ได้: {e}")
     # ในกรณีจริง ถ้าระบบเชื่อม DB ไม่ได้ อาจจะต้องปิด Server ทิ้ง
     # exit(1)
 
+if not SUPABASE_URL or not SUPABASE_KEY:
+    print("⚠️ เตือน: ไม่พบตั้งค่า SUPABASE_URL หรือ SUPABASE_KEY")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 app = Flask(__name__)
 CORS(app) 
 
@@ -95,9 +106,14 @@ def generate_music_thread(task_id, prompt, max_new_tokens, title):
         sampling_rate = model.config.audio_encoder.sampling_rate
         audio_data = audio_values[0, 0].cpu().numpy()
 
-        os.makedirs("generated_music", exist_ok=True)
-        output_filename = f"generated_music/{task_id}.wav"       
-        scipy.io.wavfile.write(output_filename, rate=sampling_rate, data=audio_data) 
+        temp_file = os.path.join(tempfile.gettempdir(), f"{task_id}.wav")
+        scipy.io.wavfile.write(temp_file, rate=sampling_rate, data=audio_data) 
+        with open(temp_file, 'rb') as f:
+            # สั่งอัปโหลดเข้าโฟลเดอร์ชื่อ 'music'
+            supabase.storage.from_("music").upload(f"{task_id}.wav", f)
+            
+        # 🟢 ขอลิงก์สาธารณะสำหรับเอาไปเปิดฟังบนเว็บ
+        public_url = supabase.storage.from_("music").get_public_url(f"{task_id}.wav")
         #output_filename = f"{title}.wav"
         #scipy.io.wavfile.write(output_filename, rate=sampling_rate, data=audio_data)
         
@@ -110,7 +126,7 @@ def generate_music_thread(task_id, prompt, max_new_tokens, title):
         doc_ref.update({
             'status': 'completed',
             'progress': 100,
-            'filename': output_filename,
+            'filename': public_url['publicURL'], # 🟢 บันทึก URL สาธารณะลง Firebase
             'execution_time': round(duration, 2) # 🟢 บันทึกเวลาลง Firebase ด้วย
         })
             
@@ -198,7 +214,8 @@ def get_history():
             "taskId": d["id"],
             "title": d.get("title", f"เพลง AI ({d['id'][:4]})"), # 🟢 ดึงชื่อเพลงของจริงมาโชว์
             "prompt": d["prompt"],
-            "date": d.get("created_at", "")
+            "date": d.get("created_at", ""),
+            "audio_url": d.get("audio_url", "")
         })
         
     return jsonify(history_list)

@@ -182,10 +182,16 @@ function App() {
   const playFromHistory = (taskId, title) => {
     // โหลดไฟล์เสียงตรงๆ จาก Backend ตามรหัส
     //const url = `http://localhost:8000/download/${taskId}`;
-    const url = `https://f1uke-music-ai-backend.hf.space/download/${taskId}`;
-    setAudioUrl(url);
-    setFinishedTitle(title);
-    window.scrollTo({ top: 0, behavior: 'smooth' }); // เลื่อนจอกลับขึ้นไปด้านบน
+    //const url = `https://f1uke-music-ai-backend.hf.space/download/${taskId}`;
+    const selected = history.find(item => item.taskId === taskId);
+    if (!selected || !selected.audio_url) {
+      setAudioUrl(selected.audio_url);
+      setFinishedTitle(title);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      alert('ไม่พบไฟล์เสียงสำหรับรายการนี้');
+    }
+   
   };
 
   return (

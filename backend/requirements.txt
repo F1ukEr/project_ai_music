@@ -12,3 +12,4 @@ pydub
 librosa
 supabase
 firebase-admin
+python-dotenv
