@@ -134,19 +134,21 @@ function App() {
           if (data.status === 'completed') {
             // 3. ถ้าสำเร็จ 100% ให้ดาวน์โหลดไฟล์มาเล่น
             //const audioRes = await fetch(`http://localhost:8000/download/${task_id}`);
-            const audioRes = await fetch(`https://f1uke-music-ai-backend.hf.space/download/${task_id}`);
-            const audioBlob = await audioRes.blob();
-            const url = URL.createObjectURL(audioBlob);
-            console.log(`🎉 เพลงพร้อมแล้ว! URL: ${url}`);
-            console.log(`🎵 ชื่อเพลง: ${songTitle.trim() === '' ? 'Untitled Track' : songTitle}`);
-            console.log(`📝 Prompt ที่ใช้: ${prompt}`);
-            console.log(`⏱️ เวลาที่ใช้: ${data.execution_time} วินาที`);
+            //const audioRes = await fetch(`https://f1uke-music-ai-backend.hf.space/download/${task_id}`);
+            //const audioBlob = await audioRes.blob();
+            //const url = URL.createObjectURL(audioBlob);
             const finalTitle = songTitle.trim() === '' ? 'Untitled Track' : songTitle;
-
+            setAudioUrl(data.audio_url); // ใช้ URL ที่ Backend ส่งมาแทนการดาวน์โหลดแล้วสร้าง URL เอง
             setFinishedTitle(finalTitle);
-            setAudioUrl(url);
             setIsLoading(false);
             fetchHistory(false); // รีเฟรชประวัติใหม่หลังสร้างเพลงเสร็จ
+
+            const mins = Math.floor(data.execution_time / 60);
+            const secs = Math.floor(data.execution_time % 60);
+            console.log(`🎉 เพลงพร้อมแล้ว! URL: ${data.audio_url}`);
+            console.log(`🎵 ชื่อเพลง: ${songTitle.trim() === '' ? 'Untitled Track' : songTitle}`);
+            console.log(`📝 Prompt ที่ใช้: ${prompt}`);
+            console.log(`⏱️ เวลาที่ใช้: ${mins} นาที ${secs} วินาที`);
 
 
           } else if (data.status === 'failed') {
@@ -184,7 +186,7 @@ function App() {
     //const url = `http://localhost:8000/download/${taskId}`;
     //const url = `https://f1uke-music-ai-backend.hf.space/download/${taskId}`;
     const selected = history.find(item => item.taskId === taskId);
-    if (!selected || !selected.audio_url) {
+    if (selected && selected.audio_url) {
       setAudioUrl(selected.audio_url);
       setFinishedTitle(title);
       window.scrollTo({ top: 0, behavior: 'smooth' });
