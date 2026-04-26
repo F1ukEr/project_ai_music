@@ -8,6 +8,7 @@ function App() {
   const [songTitle, setSongTitle] = useState('');
   const [finishedTitle, setFinishedTitle] = useState('');
   const [audioUrl, setAudioUrl] = useState(null);
+  const [generationMode, setGenerationMode] = useState('basic');
 
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -208,6 +209,8 @@ function App() {
             generateMusic={generateMusic}
             isLoading={isLoading}
             progress={progress}
+            generationMode={generationMode}
+            setGenerationMode={setGenerationMode}
           />
 
 
