@@ -267,13 +267,13 @@ function PromptPage({ prompt, setPrompt, songTitle, setSongTitle, generateRandom
       {/* ─── Generate Button ─── */}
       <button
         onClick={generateMusic}
-        disabled={isLoading || !prompt}
+        disabled={isLoading}
         className={`w-full py-4 px-6 rounded-xl font-bold text-sm transition-all duration-300 relative overflow-hidden ${
           isLoading
             ? 'bg-gray-900 border border-green-500/20 cursor-not-allowed'
             : prompt
               ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white shadow-[0_4px_20px_rgba(34,197,94,0.35)] hover:shadow-[0_4px_30px_rgba(34,197,94,0.55)] hover:scale-[1.01] active:scale-[0.99]'
-              : 'bg-gray-800/60 text-gray-600 cursor-not-allowed border border-gray-700/60'
+              : 'bg-gray-800/80 text-gray-400 border border-gray-700/60 hover:border-green-500/40 cursor-pointer'
         }`}
       >
         {isLoading ? (
