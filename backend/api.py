@@ -133,11 +133,16 @@ def get_task_status(task_id):
 def get_history():
     try:
         user_id = request.args.get('user_id')
+        last_date = request.args.get('last_date')
         query = supabase.table('music_database').select('*').eq('status', 'completed')
-        
+
         if user_id:
             query = query.eq('user_id', user_id)
-            
+
+        # ถ้ามี last_date จาก Frontend → ดึงเฉพาะรายการที่เก่ากว่า (สำหรับ "โหลดเพิ่ม")
+        if last_date:
+            query = query.lt('created_at', last_date)
+
         query = query.order('created_at', desc=True).limit(10)
         res = query.execute()
         
