@@ -19,3 +19,8 @@ serviceKey.json
 
 # ป้องกันโฟลเดอร์โหลดโมเดล AI (ไฟล์มันใหญ่มาก GitHub จะพังเอา)
 hf_cache/
+backend/hf_cache/
+backend/uploads/
+backend/generated_music_*.wav
+frontend/.env
+frontend/.env.local

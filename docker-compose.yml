@@ -1,0 +1,57 @@
+# ─────────────────────────────────────────────────────────────
+#  Music AI — full stack (backend + frontend) — Self-contained
+#
+#  ✅ ไม่ต้องสมัคร Supabase / cloud อะไร
+#  ✅ DB เป็น SQLite อยู่ใน volume `appdata`
+#  ✅ ไฟล์เสียงอยู่ใน volume `appdata/audio`
+#  ✅ โมเดล HuggingFace อยู่ใน volume `models`
+#
+#  เริ่มใช้:
+#    docker compose up --build
+#    เปิด http://localhost:5173
+#
+#  ครั้งแรกจะดาวน์โหลด musicgen-small (~1.5 GB) — รอ ~5 นาที
+# ─────────────────────────────────────────────────────────────
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: musicai-backend
+    environment:
+      DATA_DIR: /data
+      # ถ้า deploy หลัง domain จริง ให้ uncomment + ใส่ URL:
+      # PUBLIC_BASE_URL: https://api.yourdomain.com
+    ports:
+      - "8000:8000"
+    volumes:
+      - models:/models    # โมเดล HuggingFace (download ครั้งเดียว reuse ได้)
+      - appdata:/data     # SQLite db + ไฟล์เสียงที่เจนได้
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 180s  # โหลดโมเดลครั้งแรกใช้เวลานาน
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # browser เรียก API จากเครื่อง user ผ่าน host port — ใช้ localhost
+        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:8000}
+    container_name: musicai-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  models:
+    driver: local
+  appdata:
+    driver: local

@@ -3,6 +3,8 @@ import PromptPage from './components/Promt';
 import MusicPlayer from './components/MusicPlayer';
 import HistoryList from './components/HistoryList';
 
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
+
 function App() {
   const [prompt, setPrompt] = useState('');
   const [songTitle, setSongTitle] = useState('');
@@ -13,9 +15,17 @@ function App() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
   const [history, setHistory] = useState([]);
-  const [lastDate, setLastDate] = useState(null); // สำหรับเก็บวันที่ของรายการล่าสุดที่โหลดมา
-  const [hasMore, setHasMore] = useState(true); // สำหรับเช็คว่ามีรายการเก่ากว่านี้อีกไหม
-  const [isLoadingMore, setIsLoadingMore] = useState(false); // สำหรับสถานะการโหลดรายการเก่า
+  const [lastDate, setLastDate] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [backendOnline, setBackendOnline] = useState(null);
+
+  const [mode, setMode] = useState(() => localStorage.getItem('mode') || 'basic');
+  const [selectedGenre, setSelectedGenre] = useState(null);
+  const [durationTokens, setDurationTokens] = useState(() => {
+    const v = parseInt(localStorage.getItem('duration_tokens') || '1500', 10);
+    return [500, 1000, 1500].includes(v) ? v : 1500;
+  });
 
   const [UserID] = useState(() => {
     let id = localStorage.getItem('user_id');
@@ -26,69 +36,71 @@ function App() {
     return id;
   });
 
+  useEffect(() => {
+    localStorage.setItem('mode', mode);
+  }, [mode]);
 
   useEffect(() => {
-    // โหลดประวัติจาก Database ผ่าน API
-    /*const fetchHistory = async () => {
-      try {
-        const res = await fetch('http://localhost:8000/history');
-        const data = await res.json();
-        setHistory(data);
-      } catch (err) {
-        console.error('ไม่สามารถโหลดประวัติได้:', err);
-      }*/
+    localStorage.setItem('duration_tokens', String(durationTokens));
+  }, [durationTokens]);
+
+  useEffect(() => {
     fetchHistory();
+    checkBackend();
+    const t = setInterval(checkBackend, 30000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const checkBackend = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/health`, { method: 'GET' });
+      setBackendOnline(res.ok);
+    } catch {
+      setBackendOnline(false);
+    }
+  };
 
-  // 🟢 แก้ไขฟังก์ชัน fetchHistory ให้รับพารามิเตอร์ isLoadMore
   const fetchHistory = async (isLoadMore = false) => {
-    // ถ้าเป็นการกดโหลดเพิ่ม ให้เซ็ตสถานะปุ่มเป็นกำลังโหลด
     if (isLoadMore) setIsLoadingMore(true);
 
     try {
-      // สร้าง URL พร้อมเช็คว่าต้องแนบ last_date ไปไหม
-      /*const url = isLoadMore && lastDate
-        ? `http://localhost:8000/history?last_date=${encodeURIComponent(lastDate)}`
-        : 'http://localhost:8000/history';*/
-      const url = isLoadMore && lastDate
-        ? `https://f1uke-music-ai-backend.hf.space/history?user_id=${UserID}&last_date=${encodeURIComponent(lastDate)}`
-        : `https://f1uke-music-ai-backend.hf.space/history?user_id=${UserID}`;
+      const url =
+        isLoadMore && lastDate
+          ? `${API_BASE}/history?user_id=${UserID}&last_date=${encodeURIComponent(lastDate)}`
+          : `${API_BASE}/history?user_id=${UserID}`;
 
       const res = await fetch(url);
       const data = await res.json();
 
       if (data.length > 0) {
         if (isLoadMore) {
-          // ถ้าระบุว่าโหลดเพิ่ม ให้เอาข้อมูลใหม่ไปต่อท้ายของเดิม
-          setHistory(prev => [...prev, ...data]);
+          setHistory((prev) => [...prev, ...data]);
         } else {
-          // ถ้าดึงครั้งแรกตอนเปิดเว็บ ให้แทนที่ข้อมูลทั้งหมด
           setHistory(data);
         }
-
-        // อัปเดตวันที่ล่าสุด (จากรายการสุดท้ายที่ได้มา) เพื่อเอาไว้ใช้โหลดครั้งหน้า
         setLastDate(data[data.length - 1].date);
-
-        // ตรวจสอบว่ายังมีให้โหลดต่อไหม (ถ้าได้มา 10 รายการเป๊ะ อาจจะมีต่อ)
         setHasMore(data.length === 10);
       } else {
-        // ถ้าได้ข้อมูลกลับมาเป็น 0 แสดงว่าหมดประวัติแล้ว
         setHasMore(false);
         if (!isLoadMore) setHistory([]);
       }
     } catch (err) {
       console.error('ไม่สามารถโหลดประวัติได้:', err);
     } finally {
-      // เมื่อทำงานเสร็จ ปิดสถานะกำลังโหลด
       setIsLoadingMore(false);
     }
-  }; // 🟢 วงเล็บปิดฟังก์ชันครบถ้วน
+  };
 
   const generateRandomTitle = () => {
     const coolTitles = [
-      "Digital Horizon", "Neon Distortion", "Midnight Echoes",
-      "Synthetic Soul", "Crawling Shadows", "Cyberpunk Rhapsody", "Electric Mirage", "Pixelated Dreams", "Future Nostalgia", "บัวลอยในสายลม", "เสียงของความว่างเปล่า", "แสงสุดท้ายของวัน", "ดนตรีแห่งความทรงจำ", "จังหวะของหัวใจที่แตกสลาย", "เสียงสะท้อนจากอดีต", "บทเพลงแห่งความหวัง", "เสียงกระซิบของจักรวาล", "ทำนองแห่งความฝัน", "เสียงเรียกจากความมืด", "บทเพลงที่ไม่มีคำบรรยาย"
+      'Digital Horizon', 'Neon Distortion', 'Midnight Echoes',
+      'Synthetic Soul', 'Crawling Shadows', 'Cyberpunk Rhapsody',
+      'Electric Mirage', 'Pixelated Dreams', 'Future Nostalgia',
+      'บัวลอยในสายลม', 'เสียงของความว่างเปล่า', 'แสงสุดท้ายของวัน',
+      'ดนตรีแห่งความทรงจำ', 'จังหวะของหัวใจที่แตกสลาย', 'เสียงสะท้อนจากอดีต',
+      'บทเพลงแห่งความหวัง', 'เสียงกระซิบของจักรวาล', 'ทำนองแห่งความฝัน',
+      'เสียงเรียกจากความมืด', 'บทเพลงที่ไม่มีคำบรรยาย',
     ];
     const randomIndex = Math.floor(Math.random() * coolTitles.length);
     setSongTitle(coolTitles[randomIndex]);
@@ -96,66 +108,56 @@ function App() {
 
   const generateMusic = async () => {
     if (!prompt.trim()) {
-      alert("กรุณาพิมพ์ข้อความก่อนสร้างเพลง!");
+      alert('กรุณาเลือกแนวเพลงหรือพิมพ์ข้อความก่อนสร้างเพลง!');
       return;
     }
-    if (prompt.length > 200) {
-      alert("ข้อความยาวเกินไป! กรุณาใส่ไม่เกิน 200 ตัวอักษร.");
+    if (prompt.length > 400) {
+      alert('ข้อความยาวเกินไป! กรุณาใส่ไม่เกิน 400 ตัวอักษร.');
       return;
     }
 
     setIsLoading(true);
     setError('');
     setAudioUrl(null);
-    setProgress(0); // 🟢 เริ่มต้นที่ 0%
+    setProgress(0);
 
     try {
-      // 1. สั่งเริ่มงาน ขอรหัส task_id จาก Backend
-      //const startResponse = await fetch('http://localhost:8000/generate-task',
-      const startResponse = await fetch('https://f1uke-music-ai-backend.hf.space/generate-task', {
+      const startResponse = await fetch(`${API_BASE}/generate-task`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt, title: songTitle.trim() === '' ? 'Untitled Track' : songTitle, user_id: UserID })
+        body: JSON.stringify({
+          prompt,
+          title: songTitle.trim() === '' ? 'Untitled Track' : songTitle,
+          user_id: UserID,
+          mode,
+          genre: mode === 'basic' ? selectedGenre : null,
+          duration_tokens: durationTokens,
+        }),
       });
 
-      if (!startResponse.ok) throw new Error('ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้');
+      if (!startResponse.ok) {
+        const errBody = await startResponse.json().catch(() => ({}));
+        throw new Error(errBody.error || 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้');
+      }
       const { task_id } = await startResponse.json();
 
-      // 2. ฟังก์ชันวนเช็คสถานะ
       const checkStatus = async () => {
         try {
-          //const statusRes = await fetch(`http://localhost:8000/status/${task_id}`);
-          const statusRes = await fetch(`https://f1uke-music-ai-backend.hf.space/status/${task_id}`);
+          const statusRes = await fetch(`${API_BASE}/status/${task_id}`);
           const data = await statusRes.json();
 
-          // อัปเดต % จาก Backend มาใส่ใน React
           setProgress(data.progress || 0);
 
           if (data.status === 'completed') {
-            // 3. ถ้าสำเร็จ 100% ให้ดาวน์โหลดไฟล์มาเล่น
-            //const audioRes = await fetch(`http://localhost:8000/download/${task_id}`);
-            //const audioRes = await fetch(`https://f1uke-music-ai-backend.hf.space/download/${task_id}`);
-            //const audioBlob = await audioRes.blob();
-            //const url = URL.createObjectURL(audioBlob);
             const finalTitle = songTitle.trim() === '' ? 'Untitled Track' : songTitle;
-            setAudioUrl(data.audio_url); // ใช้ URL ที่ Backend ส่งมาแทนการดาวน์โหลดแล้วสร้าง URL เอง
+            setAudioUrl(data.audio_url);
             setFinishedTitle(finalTitle);
             setIsLoading(false);
-            fetchHistory(false); // รีเฟรชประวัติใหม่หลังสร้างเพลงเสร็จ
-
-            const mins = Math.floor(data.execution_time / 60);
-            const secs = Math.floor(data.execution_time % 60);
-            console.log(`🎉 เพลงพร้อมแล้ว! URL: ${data.audio_url}`);
-            console.log(`🎵 ชื่อเพลง: ${songTitle.trim() === '' ? 'Untitled Track' : songTitle}`);
-            console.log(`📝 Prompt ที่ใช้: ${prompt}`);
-            console.log(`⏱️ เวลาที่ใช้: ${mins} นาที ${secs} วินาที`);
-
-
+            fetchHistory(false);
           } else if (data.status === 'failed') {
-            setError(`สร้างเพลงล้มเหลว: ${data.error}`);
+            setError(`สร้างเพลงล้มเหลว: ${data.error || 'ไม่ทราบสาเหตุ'}`);
             setIsLoading(false);
           } else {
-            // ถ้ายังไม่เสร็จ ให้รอแล้วเช็คใหม่อีกครั้ง
             setTimeout(checkStatus, 5000);
           }
         } catch (err) {
@@ -165,27 +167,23 @@ function App() {
         }
       };
 
-      // เริ่มการถามครั้งแรก
       setTimeout(checkStatus, 5000);
-
     } catch (err) {
       console.error(err);
-      setError('ไม่สามารถส่งคำสั่งเริ่มงานได้');
+      setError(err.message || 'ไม่สามารถส่งคำสั่งเริ่มงานได้');
       setIsLoading(false);
     }
   };
 
-  // ดึง Prompt จากประวัติกลับมาใช้ใหม่
   const reusePrompt = (oldPrompt, oldTitle) => {
+    setMode('advanced');
     setPrompt(oldPrompt);
     setSongTitle(oldTitle);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const playFromHistory = (taskId, title) => {
-    // โหลดไฟล์เสียงตรงๆ จาก Backend ตามรหัส
-    //const url = `http://localhost:8000/download/${taskId}`;
-    //const url = `https://f1uke-music-ai-backend.hf.space/download/${taskId}`;
-    const selected = history.find(item => item.taskId === taskId);
+    const selected = history.find((item) => item.taskId === taskId);
     if (selected && selected.audio_url) {
       setAudioUrl(selected.audio_url);
       setFinishedTitle(title);
@@ -193,34 +191,94 @@ function App() {
     } else {
       alert('ไม่พบไฟล์เสียงสำหรับรายการนี้');
     }
-   
   };
 
   return (
-    <div className="max-w-4xl mx-auto w-full p-4 text-center mt-6 ">
-      <div className="p-8 rounded-2xl bg-dark-900/60 backdrop-blur border border-gray-700/50 shadow-2xl">
-          <PromptPage 
-            prompt={prompt} 
-            setPrompt={setPrompt} 
-            songTitle={songTitle} 
+    <div className="min-h-screen flex flex-col">
+      {/* floating API status indicator */}
+      <div className="fixed top-4 right-4 z-40">
+        <StatusBadge online={backendOnline} />
+      </div>
+
+      {/* ── Main ─────────────────────────────────── */}
+      <main className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 pt-10 sm:pt-14 pb-12">
+        <div className="surface p-6 sm:p-9 rounded-3xl">
+          <PromptPage
+            prompt={prompt}
+            setPrompt={setPrompt}
+            songTitle={songTitle}
             setSongTitle={setSongTitle}
             generateRandomTitle={generateRandomTitle}
             generateMusic={generateMusic}
             isLoading={isLoading}
             progress={progress}
+            mode={mode}
+            setMode={setMode}
+            selectedGenre={selectedGenre}
+            setSelectedGenre={setSelectedGenre}
+            durationTokens={durationTokens}
+            setDurationTokens={setDurationTokens}
           />
 
+          {error && (
+            <div className="mt-5 px-4 py-3 rounded-xl border border-red-500/40 bg-red-500/10 text-red-300 text-sm font-medium flex items-start gap-2 animate-fadeIn">
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 mt-0.5 shrink-0">
+                <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm-1 5h2v7h-2V7zm0 9h2v2h-2v-2z" />
+              </svg>
+              <span>{error}</span>
+            </div>
+          )}
 
-        {error && <div className="text-red-500 mt-5 font-bold">❌ {error}</div>}
+          <MusicPlayer audioUrl={audioUrl} title={finishedTitle} />
+        </div>
 
-        {/* Waveform Player */}
-        <MusicPlayer audioUrl={audioUrl} title={finishedTitle} />
-      </div>
+        <HistoryList
+          history={history}
+          onReusePrompt={reusePrompt}
+          onPlayHistory={playFromHistory}
+          onLoadMore={() => fetchHistory(true)}
+          hasMore={hasMore}
+          isLoadingMore={isLoadingMore}
+        />
+      </main>
 
-      {/*  ประวัติการสร้าง */}
-      <HistoryList history={history} onReusePrompt={reusePrompt} onPlayHistory={playFromHistory} onLoadMore={() => fetchHistory(true)} hasMore={hasMore} isLoadingMore={isLoadingMore} />
+      {/* ── Footer ────────────────────────────────── */}
+      <footer className="border-t border-white/5 mt-auto">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-gray-500">
+          <div>
+            Powered by{' '}
+            <span className="text-emerald-400 font-semibold">MusicGen</span>
+            <span className="mx-2 text-gray-700">·</span>
+            <span className="font-mono">v1.0</span>
+          </div>
+          <div>© {new Date().getFullYear()} AI Music Studio</div>
+        </div>
+      </footer>
     </div>
+  );
+}
 
+function StatusBadge({ online }) {
+  const color =
+    online === null
+      ? 'bg-gray-500'
+      : online
+        ? 'bg-emerald-400'
+        : 'bg-red-500';
+  const label =
+    online === null ? 'checking…' : online ? 'API online' : 'API offline';
+  return (
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/10 bg-dark-900/50">
+      <span className="relative flex h-2 w-2">
+        {online && (
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
+        )}
+        <span className={`relative inline-flex rounded-full h-2 w-2 ${color}`} />
+      </span>
+      <span className="text-[10px] uppercase tracking-widest font-mono text-gray-300">
+        {label}
+      </span>
+    </div>
   );
 }
 

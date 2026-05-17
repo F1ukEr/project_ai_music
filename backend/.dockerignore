@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+*.db
+*.wav
+*.mp3
+*.pkl
+*.keras
+hf_cache/
+uploads/
+node_modules/
+package-lock.json
+serviceKey.json
+generated_music_*.wav

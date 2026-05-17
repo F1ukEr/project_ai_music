@@ -1,0 +1,9 @@
+# Minimal runtime deps สำหรับ Docker image
+# DB: SQLite (built-in)  /  Storage: local filesystem  → ไม่พึ่ง cloud
+flask==3.0.*
+flask-cors==4.0.*
+python-dotenv==1.0.*
+scipy==1.13.*
+numpy==1.26.*
+transformers==4.44.*
+# torch CPU wheel ติดตั้งแยกใน Dockerfile (จาก index pytorch.org)
