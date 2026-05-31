@@ -3,7 +3,8 @@ import PromptPage from './components/Promt';
 import MusicPlayer from './components/MusicPlayer';
 import HistoryList from './components/HistoryList';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
+//const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
+const API_BASE = 'https://f1uke-music-ai-backend.hf.space';
 
 function App() {
   const [prompt, setPrompt] = useState('');
